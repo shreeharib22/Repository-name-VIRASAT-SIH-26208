@@ -112,15 +112,34 @@ export class XRExperience {
     // differences around the "select" event while preserving runtime behavior.
     const controllerEvents = this.vrController as any;
 
-    controllerEvents.addEventListener('select', () => {
-      if (this.heritageVideoReady) {
-        this.enableVideoAudio();
-      }
+   controllerEvents.addEventListener('select', () => {
+  if (this.heritageVideoReady) {
+    this.enableVideoAudio();
+  }
 
-      if (!this.selectedModel) {
-        void this.placeSelectedVR();
-      }
-    });
+  // AR: tap the screen to place the artifact on the detected surface.
+  if (this.renderer.xr.isPresenting && this.renderer.xr.getSession()?.environmentBlendMode !== 'opaque') {
+    if (!this.reticle.visible || !this.selectedModel) return;
+
+    const position = new THREE.Vector3().setFromMatrixPosition(
+      this.reticle.matrix,
+    );
+
+    this.selectedModel.position.copy(position);
+    this.selectedModel.visible = true;
+
+    if (this.heritageVideoGroup) {
+      this.heritageVideoGroup.visible = true;
+    }
+
+    return;
+  }
+
+  // VR: controller select places the artifact in front of the user.
+  if (!this.selectedModel) {
+    void this.placeSelectedVR();
+  }
+});
 
     sceneAddControllerModel(this.vrController, this.scene);
   }
