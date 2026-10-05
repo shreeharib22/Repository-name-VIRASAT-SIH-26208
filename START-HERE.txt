@@ -1,0 +1,27 @@
+VIRASAT — START HERE
+
+1. Extract this ZIP.
+2. Open the extracted VIRASAT-SIH-26208-FULL folder in VS Code.
+3. Open a terminal in that folder.
+4. Run:
+   npm install
+5. Start frontend:
+   npm run dev
+6. Open:
+   http://localhost:5173/
+7. Optional backend (second terminal):
+   npm run backend
+   Backend health: http://localhost:4000/api/health
+
+Your supplied models are already inside:
+public/models/
+
+AR/VR notes:
+- Real WebXR is used, not simulated AR/VR.
+- AR/VR require compatible hardware/browser.
+- Use HTTPS deployment for real-device AR testing.
+
+Core demo path:
+Home → Start Journey → Hampi → Explore → Stone Chariot → Inspect → Reconstruction → Passport → 3D Museum → AR/VR
+
+Do not delete public/models.

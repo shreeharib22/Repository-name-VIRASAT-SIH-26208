@@ -1,0 +1,9 @@
+{
+  "players": {},
+  "leaderboard": [
+    { "rank": 1, "name": "Aarav", "xp": 1280, "artifacts": 8 },
+    { "rank": 2, "name": "Meera", "xp": 1040, "artifacts": 7 },
+    { "rank": 3, "name": "Kabir", "xp": 880, "artifacts": 5 },
+    { "rank": 4, "name": "Demo Explorer", "xp": 420, "artifacts": 3 }
+  ]
+}

@@ -1,0 +1,1960 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: #f5ead8;
+  background: #090705;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  --bg: #090705;
+  --panel: rgba(13, 10, 8, 0.78);
+  --panel-strong: rgba(12, 9, 7, 0.92);
+  --line: rgba(220, 184, 116, 0.18);
+  --line-strong: rgba(220, 184, 116, 0.38);
+  --gold: #d7ad69;
+  --gold-bright: #efc985;
+  --cream: #f5ead8;
+  --muted: rgba(245, 234, 216, 0.58);
+  --muted-strong: rgba(245, 234, 216, 0.78);
+  --shadow: rgba(0, 0, 0, 0.48);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 50% -20%,
+      rgba(161, 104, 48, 0.16),
+      transparent 38%
+    ),
+    #090705;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgba(215, 173, 105, 0.28);
+  color: #fff3dc;
+}
+
+.app {
+  min-height: 100vh;
+  background: #090705;
+}
+
+/* ============================================================
+   FULLSCREEN GAME
+   ============================================================ */
+
+.game-shell,
+.screen-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.canvas-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.canvas-host canvas,
+.game-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Cinematic vignette over the 3D game */
+.game-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background:
+    radial-gradient(
+      ellipse at center,
+      transparent 48%,
+      rgba(0, 0, 0, 0.18) 76%,
+      rgba(0, 0, 0, 0.5) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.12),
+      transparent 22%,
+      transparent 75%,
+      rgba(0, 0, 0, 0.22)
+    );
+}
+
+/* ============================================================
+   POINTER LAYERS
+   ============================================================ */
+
+.overlay {
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.pointer {
+  pointer-events: auto;
+}
+
+/* ============================================================
+   PANELS
+   ============================================================ */
+
+.glass-panel {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(30, 21, 14, 0.88),
+      rgba(10, 8, 6, 0.78)
+    );
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow:
+    0 20px 80px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.glass-panel::before {
+  content: '';
+  display: block;
+  position: absolute;
+  pointer-events: none;
+}
+
+.eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: rgba(245, 227, 194, 0.48);
+}
+
+.kicker {
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+
+.hero-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 48px;
+  padding: 6vh 7vw;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 82% 44%,
+      rgba(186, 123, 52, 0.1),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 20% 100%,
+      rgba(128, 72, 31, 0.14),
+      transparent 30%
+    ),
+    #090705;
+}
+
+.hero-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.25),
+      transparent 45%,
+      rgba(0, 0, 0, 0.12)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 80px,
+      rgba(255, 255, 255, 0.012) 81px 82px
+    );
+  opacity: 0.5;
+}
+
+.hero-glow {
+  position: absolute;
+  right: -10%;
+  bottom: -35%;
+  width: 70vw;
+  height: 70vw;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(194, 132, 59, 0.22),
+      rgba(116, 71, 28, 0.08) 38%,
+      transparent 70%
+    );
+  filter: blur(24px);
+  animation: heroGlow 8s ease-in-out infinite alternate;
+}
+
+@keyframes heroGlow {
+  from {
+    transform: scale(0.96);
+    opacity: 0.7;
+  }
+
+  to {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+.hero-copy {
+  align-self: center;
+  max-width: 760px;
+  z-index: 2;
+  animation: heroIn 0.9s ease both;
+}
+
+@keyframes heroIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(76px, 12vw, 180px);
+  line-height: 0.82;
+  margin: 22px 0 20px;
+  letter-spacing: -0.075em;
+  font-weight: 700;
+  background:
+    linear-gradient(
+      180deg,
+      #fff2d5 0%,
+      #dcc18c 44%,
+      #9e7541 100%
+    );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow:
+    0 20px 80px rgba(191, 131, 54, 0.12);
+}
+
+.hero-subtitle {
+  max-width: 620px;
+  font-size: clamp(17px, 1.7vw, 23px);
+  line-height: 1.55;
+  color: rgba(244, 234, 215, 0.66);
+}
+
+.hero-meta {
+  margin-top: 28px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-chip {
+  padding: 8px 11px;
+  border: 1px solid rgba(220, 184, 116, 0.14);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: rgba(244, 234, 215, 0.6);
+  background: rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(8px);
+}
+
+.hero-actions {
+  margin-top: 28px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.primary-btn,
+.secondary-btn,
+.ghost-btn {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(220, 184, 116, 0.25);
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 12px 16px;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.primary-btn::after,
+.secondary-btn::after,
+.ghost-btn::after,
+.small-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-110%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.09),
+    transparent
+  );
+  transition: transform 0.45s ease;
+}
+
+.primary-btn:hover::after,
+.secondary-btn:hover::after,
+.ghost-btn:hover::after,
+.small-btn:hover::after {
+  transform: translateX(110%);
+}
+
+.primary-btn {
+  background:
+    linear-gradient(
+      135deg,
+      #e2b76c,
+      #b77b39
+    );
+  color: #171006;
+  font-weight: 700;
+  box-shadow:
+    0 10px 34px rgba(175, 112, 44, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.045);
+  color: #f4ead7;
+}
+
+.ghost-btn {
+  background: transparent;
+  color: rgba(244, 234, 215, 0.72);
+}
+
+.primary-btn:hover,
+.secondary-btn:hover,
+.ghost-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(220, 184, 116, 0.52);
+}
+
+.primary-btn:active,
+.secondary-btn:active,
+.ghost-btn:active,
+.small-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ============================================================
+   HERO ORBIT
+   ============================================================ */
+
+.hero-orbit {
+  align-self: center;
+  justify-self: center;
+  width: min(44vw, 650px);
+  aspect-ratio: 1;
+  position: relative;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 184, 116, 0.12);
+  box-shadow:
+    inset 0 0 140px rgba(194, 132, 59, 0.08),
+    0 0 80px rgba(104, 62, 24, 0.08);
+  animation: orbitIn 1.2s ease both;
+}
+
+@keyframes orbitIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hero-orbit::before,
+.hero-orbit::after {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px solid rgba(220, 184, 116, 0.08);
+  border-radius: 50%;
+}
+
+.hero-orbit::after {
+  inset: 21%;
+  border-style: dashed;
+  animation: orbitSpin 24s linear infinite;
+}
+
+@keyframes orbitSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hero-sun {
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 34% 29%,
+      #f0ce91 0%,
+      #bb8040 25%,
+      #68411f 56%,
+      #1a0f09 78%
+    );
+  filter:
+    drop-shadow(0 0 50px rgba(214, 165, 90, 0.16))
+    drop-shadow(0 0 120px rgba(174, 110, 40, 0.12));
+  animation: float 7s ease-in-out infinite;
+}
+
+.hero-mark {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  color: rgba(245, 227, 194, 0.55);
+}
+
+@keyframes float {
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+/* ============================================================
+   GLOBAL TOPBAR
+   ============================================================ */
+
+.topbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  z-index: 20;
+}
+
+.brand {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 16px;
+  color: #f2dfbc;
+}
+
+.top-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.small-btn {
+  position: relative;
+  overflow: hidden;
+  padding: 8px 11px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(30, 23, 18, 0.82),
+      rgba(9, 7, 5, 0.82)
+    );
+  color: rgba(244, 234, 215, 0.82);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.small-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(220, 184, 116, 0.38);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(48, 35, 24, 0.9),
+      rgba(14, 10, 7, 0.88)
+    );
+}
+
+/* ============================================================
+   STANDARD SCREENS
+   ============================================================ */
+
+.map-screen,
+.museum-screen,
+.passport-screen,
+.about-screen {
+  position: relative;
+  padding: 92px 6vw 60px;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: auto;
+  background:
+    radial-gradient(
+      circle at 86% 0%,
+      rgba(163, 102, 47, 0.13),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 10% 100%,
+      rgba(112, 66, 30, 0.11),
+      transparent 26%
+    ),
+    #0b0806;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 24px;
+}
+
+.map-card {
+  min-height: 62vh;
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(171, 111, 43, 0.07),
+      transparent 50%
+    ),
+    linear-gradient(
+      145deg,
+      #24170f,
+      #0d0906
+    );
+  border: 1px solid rgba(220, 184, 116, 0.15);
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.3);
+}
+
+.india-shape {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 7%;
+  bottom: 7%;
+  clip-path: polygon(
+    55% 2%,
+    68% 12%,
+    73% 25%,
+    82% 31%,
+    76% 41%,
+    69% 56%,
+    62% 73%,
+    56% 95%,
+    44% 83%,
+    36% 66%,
+    22% 53%,
+    29% 44%,
+    15% 35%,
+    23% 23%,
+    36% 20%,
+    44% 8%
+  );
+  background:
+    radial-gradient(
+      circle at 55% 30%,
+      rgba(224, 171, 91, 0.66),
+      rgba(92, 57, 29, 0.94) 58%,
+      rgba(17, 12, 8, 0.55) 78%
+    );
+  filter:
+    drop-shadow(0 30px 50px rgba(0, 0, 0, 0.44));
+  animation: mapPulse 7s ease-in-out infinite;
+}
+
+@keyframes mapPulse {
+  50% {
+    filter:
+      drop-shadow(0 30px 60px rgba(0, 0, 0, 0.48))
+      brightness(1.05);
+  }
+}
+
+.map-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px;
+  z-index: 3;
+}
+
+.marker-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      #f2d79d 0 28%,
+      #d6aa67 29% 62%,
+      #7d562d 63%
+    );
+  box-shadow:
+    0 0 0 4px rgba(214, 170, 103, 0.06),
+    0 0 24px rgba(214, 170, 103, 0.8);
+  border: 2px solid #2d1c0f;
+  cursor: pointer;
+  animation: markerPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes markerPulse {
+  50% {
+    transform: scale(1.18);
+  }
+}
+
+.marker-label {
+  margin-top: 7px;
+  transform: translateX(-16px);
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(244, 234, 215, 0.74);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.location-card {
+  padding: 26px;
+  position: relative;
+}
+
+.location-card h3 {
+  margin: 10px 0;
+  font:
+    600 clamp(30px, 4vw, 42px) 'Space Grotesk',
+    sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.location-card p {
+  color: rgba(244, 234, 215, 0.64);
+  line-height: 1.7;
+}
+
+.status {
+  display: inline-block;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(220, 184, 116, 0.08);
+  border: 1px solid rgba(220, 184, 116, 0.18);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   MUSEUM
+   ============================================================ */
+
+.museum-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.artifact-card {
+  padding: 16px;
+  min-height: 230px;
+  cursor: pointer;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background 220ms ease;
+}
+
+.artifact-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(220, 184, 116, 0.4);
+}
+
+.artifact-visual {
+  height: 150px;
+  border-radius: 13px;
+  background:
+    radial-gradient(
+      circle at 50% 35%,
+      rgba(210, 162, 90, 0.2),
+      rgba(255, 255, 255, 0.018)
+    ),
+    linear-gradient(
+      135deg,
+      rgba(80, 53, 30, 0.5),
+      rgba(10, 8, 6, 0.5)
+    );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.artifact-symbol {
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(220, 184, 116, 0.38);
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 40px rgba(220, 184, 116, 0.08);
+}
+
+.artifact-card h3 {
+  margin: 16px 0 6px;
+  font:
+    600 17px 'Space Grotesk',
+    sans-serif;
+}
+
+.artifact-card p {
+  color: rgba(244, 234, 215, 0.56);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* ============================================================
+   PASSPORT
+   ============================================================ */
+
+.passport-book {
+  max-width: 1120px;
+  margin: auto;
+  padding: 34px;
+  border-radius: 24px;
+  border: 1px solid rgba(220, 184, 116, 0.18);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(190, 132, 56, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(
+      145deg,
+      #20150f,
+      #0c0906
+    );
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.38);
+}
+
+.passport-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.passport-title {
+  font:
+    700 clamp(42px, 6vw, 78px) 'Space Grotesk',
+    sans-serif;
+  margin: 8px 0;
+  letter-spacing: -0.055em;
+}
+
+.passport-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.stamp-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stamp {
+  width: 120px;
+  height: 80px;
+  border: 1px dashed rgba(220, 184, 116, 0.32);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(244, 234, 215, 0.65);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.stamp.unlocked {
+  border-style: solid;
+  background: rgba(214, 170, 103, 0.08);
+  color: #e8c78f;
+  box-shadow: inset 0 0 30px rgba(214, 170, 103, 0.04);
+}
+
+.stamp.unlocked:hover {
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   GAME HUD
+   ============================================================ */
+
+.game-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hud-panel {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  padding: 15px 17px;
+  min-width: 245px;
+  border-color: rgba(220, 184, 116, 0.24);
+  box-shadow:
+    0 14px 50px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.hud-panel strong {
+  letter-spacing: -0.02em;
+}
+
+.hud-right {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 58vw;
+}
+
+.hud-right .small-btn {
+  background: rgba(9, 7, 5, 0.62);
+}
+
+.hud-bottom {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.objective-panel {
+  max-width: 340px;
+  padding: 15px 17px;
+}
+
+.objective-panel h4 {
+  margin: 7px 0 9px;
+  font:
+    600 17px 'Space Grotesk',
+    sans-serif;
+}
+
+.objective {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(244, 234, 215, 0.65);
+}
+
+.objective > span:first-child {
+  color: rgba(220, 184, 116, 0.48);
+}
+
+.objective.done {
+  color: #e5c88f;
+}
+
+.objective.done > span:first-child {
+  color: #e7c078;
+}
+
+.interact {
+  padding: 12px 15px;
+  border-color: rgba(232, 194, 116, 0.4);
+  box-shadow:
+    0 0 40px rgba(206, 146, 59, 0.08);
+  animation: interactionPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes interactionPulse {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.keycap {
+  display: inline-flex;
+  width: 29px;
+  height: 29px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(220, 184, 116, 0.38);
+  border-radius: 7px;
+  font-size: 10px;
+  margin-right: 9px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(105, 70, 34, 0.12),
+      transparent 42%
+    ),
+    rgba(3, 2, 1, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+  z-index: 50;
+  animation: modalIn 220ms ease both;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  width: min(720px, 94vw);
+  max-height: 85vh;
+  overflow: auto;
+  padding: 30px;
+  animation: modalCardIn 260ms ease both;
+}
+
+@keyframes modalCardIn {
+  from {
+    transform: translateY(10px) scale(0.98);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.modal h2 {
+  font:
+    700 clamp(32px, 5vw, 58px) 'Space Grotesk',
+    sans-serif;
+  margin: 8px 0;
+  letter-spacing: -0.045em;
+}
+
+.modal p {
+  color: rgba(244, 234, 215, 0.69);
+  line-height: 1.75;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 9px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   PUZZLE
+   ============================================================ */
+
+.puzzle {
+  width: min(820px, 94vw);
+  padding: 28px;
+}
+
+.puzzle-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    2,
+    minmax(0, 1fr)
+  );
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.puzzle-piece {
+  padding: 16px;
+  min-height: 74px;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 184, 116, 0.14);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.018)
+    );
+  color: #f4ead7;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.puzzle-piece:hover {
+  transform: translateY(-2px);
+  border-color: rgba(220, 184, 116, 0.34);
+}
+
+.puzzle-piece.selected {
+  border-color: rgba(220, 184, 116, 0.55);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(214, 170, 103, 0.15),
+      rgba(214, 170, 103, 0.04)
+    );
+}
+
+.sequence {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.sequence span {
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  color: #e8c78f;
+}
+
+/* ============================================================
+   XP TOAST
+   ============================================================ */
+
+.xp-toast {
+  position: absolute;
+  left: 50%;
+  top: 74px;
+  transform: translateX(-50%);
+  min-width: 180px;
+  text-align: center;
+  padding: 13px 18px;
+  border: 1px solid rgba(220, 184, 116, 0.3);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(28, 20, 13, 0.94),
+      rgba(11, 8, 6, 0.95)
+    );
+  border-radius: 11px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    0 0 40px rgba(194, 132, 59, 0.05);
+  animation: toastIn 300ms ease;
+}
+
+.xp-toast strong {
+  color: #f0ce91;
+  letter-spacing: 0.05em;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* ============================================================
+   TITLES
+   ============================================================ */
+
+.section-title {
+  margin-bottom: 25px;
+}
+
+.section-title h2 {
+  font:
+    700 clamp(40px, 6vw, 78px) 'Space Grotesk',
+    sans-serif;
+  letter-spacing: -0.055em;
+  margin: 8px 0 10px;
+}
+
+.section-title p {
+  max-width: 760px;
+  color: rgba(244, 234, 215, 0.62);
+  line-height: 1.7;
+}
+
+/* ============================================================
+   XR
+   ============================================================ */
+
+.xr-native-button {
+  position: relative !important;
+  right: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  top: auto !important;
+  margin: 0 !important;
+  background:
+    linear-gradient(
+      135deg,
+      #e1b86d,
+      #b77b39
+    ) !important;
+  color: #161008 !important;
+  font-weight: 700 !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  box-shadow:
+    0 8px 28px rgba(174, 110, 40, 0.18) !important;
+}
+
+/* ============================================================
+   SCROLLBARS
+   ============================================================ */
+
+.map-screen::-webkit-scrollbar,
+.museum-screen::-webkit-scrollbar,
+.passport-screen::-webkit-scrollbar,
+.about-screen::-webkit-scrollbar,
+.modal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.map-screen::-webkit-scrollbar-track,
+.museum-screen::-webkit-scrollbar-track,
+.passport-screen::-webkit-scrollbar-track,
+.about-screen::-webkit-scrollbar-track,
+.modal::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.map-screen::-webkit-scrollbar-thumb,
+.museum-screen::-webkit-scrollbar-thumb,
+.passport-screen::-webkit-scrollbar-thumb,
+.about-screen::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb {
+  background: rgba(220, 184, 116, 0.2);
+  border-radius: 99px;
+}
+
+.map-screen::-webkit-scrollbar-thumb:hover,
+.museum-screen::-webkit-scrollbar-thumb:hover,
+.passport-screen::-webkit-scrollbar-thumb:hover,
+.about-screen::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover {
+  background: rgba(220, 184, 116, 0.38);
+}
+
+/* ============================================================
+   MONUMENT WORLD
+   ============================================================ */
+
+.monument-world-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #090705;
+  z-index: 30;
+}
+
+.monument-canvas-host {
+  position: absolute;
+  inset: 0;
+}
+
+.monument-hud {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  z-index: 32;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.monument-hud .hud-panel,
+.monument-hud .hud-right,
+.monument-bottom,
+.monument-world-shell button {
+  pointer-events: auto;
+}
+
+.monument-bottom {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 32;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   TABLET
+   ============================================================ */
+
+@media (max-width: 980px) {
+  .hero-screen,
+  .map-layout,
+  .passport-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-screen {
+    padding-top: 80px;
+    overflow: auto;
+  }
+
+  .hero-orbit {
+    width: min(78vw, 520px);
+    order: -1;
+  }
+
+  .map-card {
+    min-height: 52vh;
+  }
+
+  .hud-right {
+    max-width: 70vw;
+  }
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .hero-screen {
+    padding: 76px 18px 30px;
+    gap: 25px;
+  }
+
+  .hero-title {
+    font-size: 62px;
+  }
+
+  .hero-subtitle {
+    font-size: 16px;
+  }
+
+  .hero-actions {
+    gap: 7px;
+  }
+
+  .primary-btn,
+  .secondary-btn,
+  .ghost-btn {
+    padding: 11px 13px;
+    font-size: 11px;
+  }
+
+  .map-screen,
+  .museum-screen,
+  .passport-screen,
+  .about-screen {
+    padding: 78px 16px 30px;
+  }
+
+  .map-card {
+    min-height: 55vh;
+  }
+
+  .topbar {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .top-actions {
+    max-width: 76vw;
+  }
+
+  .top-actions .small-btn:nth-child(n + 3) {
+    display: none;
+  }
+
+  .hud-panel {
+    top: 10px;
+    left: 10px;
+    min-width: 0;
+    max-width: 235px;
+    padding: 12px 13px;
+  }
+
+  .hud-right {
+    top: 10px;
+    right: 10px;
+    max-width: 58vw;
+    gap: 5px;
+  }
+
+  .hud-right .small-btn {
+    padding: 7px 9px;
+    font-size: 9px;
+  }
+
+  .hud-bottom {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .objective-panel {
+    max-width: none;
+    width: min(100%, 390px);
+  }
+
+  .hud-bottom > .glass-panel:last-child {
+    align-self: flex-end;
+  }
+
+  .passport-book {
+    padding: 22px 18px;
+  }
+
+  .passport-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .passport-title {
+    font-size: 48px;
+  }
+
+  .artifact-visual {
+    height: 130px;
+  }
+
+  .puzzle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 22px;
+  }
+
+  .modal h2 {
+    font-size: 34px;
+  }
+
+  .monument-hud {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-direction: column;
+  }
+
+  .monument-hud .hud-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .monument-bottom {
+    left: 10px;
+    bottom: 10px;
+  }
+}
+
+/* ============================================================
+   VERY SMALL PHONES
+   ============================================================ */
+
+@media (max-width: 420px) {
+  .hero-title {
+    font-size: 54px;
+  }
+
+  .hero-orbit {
+    width: 84vw;
+  }
+
+  .hud-panel {
+    max-width: 205px;
+  }
+
+  .hud-panel strong {
+    font-size: 16px !important;
+  }
+
+  .objective {
+    font-size: 10px;
+  }
+
+  .hud-bottom > .glass-panel:last-child {
+    font-size: 9px !important;
+  }
+}
+/* ============================================================
+   VIRASAT CINEMATIC HERITAGE VIDEO
+   ============================================================ */
+
+.heritage-video-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(120, 77, 33, 0.12),
+      transparent 42%
+    ),
+    rgba(2, 2, 1, 0.84);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: heritageVideoBackdropIn 240ms ease both;
+}
+
+.heritage-video {
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(220, 184, 116, 0.2);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(30, 21, 14, 0.96),
+      rgba(8, 6, 4, 0.97)
+    );
+  box-shadow:
+    0 40px 140px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  animation: heritageVideoCardIn 320ms cubic-bezier(.22,1,.36,1) both;
+}
+
+.heritage-video-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 4px 4px 16px;
+}
+
+.heritage-video-head h2 {
+  margin: 7px 0 4px;
+  font:
+    700 clamp(28px, 4vw, 46px) 'Space Grotesk',
+    sans-serif;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+}
+
+.heritage-video-location {
+  color: #d7ad69;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.heritage-video-frame {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 300px;
+  border-radius: 15px;
+  background: #030303;
+  border: 1px solid rgba(255,255,255,.07);
+  box-shadow:
+    0 25px 90px rgba(0,0,0,.4),
+    inset 0 0 60px rgba(0,0,0,.2);
+}
+
+.heritage-video-frame video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: #030303;
+}
+
+.heritage-video-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to top,
+      rgba(0,0,0,.76),
+      transparent
+    );
+}
+
+.heritage-video-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 74px;
+  height: 74px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.28);
+  background: rgba(8,6,4,.62);
+  color: #f5ead8;
+  font-size: 24px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding-left: 4px;
+  box-shadow:
+    0 15px 50px rgba(0,0,0,.35),
+    0 0 35px rgba(214,170,103,.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    transform .2s ease,
+    background .2s ease,
+    border-color .2s ease;
+  z-index: 3;
+}
+
+.heritage-video-play:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+  background: rgba(214,170,103,.16);
+  border-color: rgba(239,201,133,.55);
+}
+
+.heritage-video-controls {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-control {
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(7,6,4,.68);
+  color: rgba(245,234,216,.84);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    background .18s ease,
+    border-color .18s ease,
+    transform .18s ease;
+}
+
+.video-control:hover {
+  transform: translateY(-1px);
+  background: rgba(214,170,103,.11);
+  border-color: rgba(220,184,116,.35);
+}
+
+.video-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: rgba(245,234,216,.66);
+  font-variant-numeric: tabular-nums;
+}
+
+.heritage-video-progress {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  width: calc(100% - 28px);
+  height: 4px;
+  appearance: none;
+  border: 0;
+  border-radius: 99px;
+  cursor: pointer;
+  background: rgba(255,255,255,.14);
+  z-index: 5;
+}
+
+.heritage-video-progress::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid #f3d08c;
+  background: #c28b48;
+  box-shadow: 0 0 16px rgba(214,170,103,.32);
+}
+
+.heritage-video-progress::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid #f3d08c;
+  background: #c28b48;
+  box-shadow: 0 0 16px rgba(214,170,103,.32);
+}
+
+.heritage-video-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+  padding: 18px 4px 2px;
+}
+
+.heritage-video-info p {
+  max-width: 760px;
+  margin: 8px 0 0;
+  color: rgba(245,234,216,.62);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.heritage-video-status {
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
+.heritage-video-status span {
+  display: inline-flex;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(220,184,116,.18);
+  color: rgba(245,234,216,.5);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.heritage-video-status .video-complete {
+  color: #e8c78f;
+  border-color: rgba(220,184,116,.4);
+  background: rgba(214,170,103,.08);
+}
+
+@keyframes heritageVideoBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes heritageVideoCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 700px) {
+  .heritage-video-backdrop {
+    padding: 10px;
+  }
+
+  .heritage-video {
+    padding: 12px;
+    border-radius: 15px;
+  }
+
+  .heritage-video-head {
+    gap: 12px;
+  }
+
+  .heritage-video-head h2 {
+    font-size: 28px;
+  }
+
+  .heritage-video-frame {
+    min-height: 210px;
+    border-radius: 11px;
+  }
+
+  .heritage-video-controls {
+    left: 9px;
+    right: 9px;
+    bottom: 12px;
+  }
+
+  .video-control {
+    padding: 7px 8px;
+    font-size: 8px;
+  }
+
+  .heritage-video-info {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .heritage-video-info p {
+    font-size: 12px;
+  }
+}
+/* =========================
+   VIRASAT IMAGE TRAIL
+   ========================= */
+
+.image-trail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.image-trail-item {
+  position: fixed;
+  width: 190px;
+  height: 240px;
+  pointer-events: none;
+  transform-origin: center;
+  animation: imageTrailIn 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.image-trail-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 12px;
+  user-select: none;
+  -webkit-user-drag: none;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+@keyframes imageTrailIn {
+  0% {
+    opacity: 0;
+    scale: 0.7;
+    filter: blur(3px);
+  }
+
+  15% {
+    opacity: 1;
+    scale: 1;
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    scale: 0.92;
+    filter: blur(1px);
+  }
+}
+
+@media (max-width: 768px) {
+  .image-trail-item {
+    width: 130px;
+    height: 170px;
+  }
+}
+
+/* =========================
+   VIRASAT CROWD CANVAS
+   ========================= */
+
+.crowd-canvas {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 48vh;
+  display: block;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.42;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.15) 18%,
+    #000 45%,
+    #000 100%
+  );
+
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.15) 18%,
+    #000 45%,
+    #000 100%
+  );
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 4;
+}
+
+.hero-orbit {
+  position: relative;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .crowd-canvas {
+    height: 38vh;
+    opacity: 0.32;
+  }
+}

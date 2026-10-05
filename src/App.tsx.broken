@@ -1,0 +1,863 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { artifacts, guideLines, locations, missions } from './data/gameData';
+import type { AppScreen, GameProgress, Language, ToastMessage } from './types/game';
+import { defaultProgress, loadProgress, saveProgress } from './services/storage';
+import { getProgress, syncProgress } from './services/api';
+import { buildHampiWorld } from './game/WorldBuilder';
+import { createPlayer } from './game/Player';
+import { loadArtifactModel } from './game/AssetLoader';
+import { XRExperience } from './game/XRExperience';
+import { ArtifactViewer } from './components/ArtifactViewer';
+const translations: Record<Language, Record<string, string>> = {
+  en: {
+    start: 'START JOURNEY', map: 'WORLD MAP', museum: '3D MUSEUM', passport: 'HERITAGE PASSPORT', about: 'ABOUT',
+    mission: 'MISSION', objective: 'OBJECTIVES', inspect: 'INSPECT STONE CHARIOT', interact: 'INTERACT', close: 'CLOSE',
+    ar: 'AR MUSEUM', vr: 'VR GALLERY', settings: 'SETTINGS', guide: 'GUIDE', language: 'LANGUAGE', demo: 'DEMO MODE',
+  },
+  hi: {
+    start: 'यात्रा शुरू करें', map: 'विश्व मानचित्र', museum: '3D संग्रहालय', passport: 'विरासत पासपोर्ट', about: 'परिचय',
+    mission: 'मिशन', objective: 'उद्देश्य', inspect: 'पत्थर रथ देखें', interact: 'इंटरैक्ट', close: 'बंद करें',
+    ar: 'AR संग्रहालय', vr: 'VR गैलरी', settings: 'सेटिंग्स', guide: 'गाइड', language: 'भाषा', demo: 'डेमो मोड',
+  },
+  kn: {
+    start: 'ಪ್ರಯಾಣ ಆರಂಭಿಸಿ', map: 'ವಿಶ್ವ ನಕ್ಷೆ', museum: '3D ಸಂಗ್ರಹಾಲಯ', passport: 'ಪಾರಂಪರ್ಯ ಪಾಸ್‌ಪೋರ್ಟ್', about: 'ಪರಿಚಯ',
+    mission: 'ಮಿಷನ್', objective: 'ಉದ್ದೇಶಗಳು', inspect: 'ಕಲ್ಲಿನ ರಥ ವೀಕ್ಷಿಸಿ', interact: 'ಇಂಟರಾಕ್ಟ್', close: 'ಮುಚ್ಚಿ',
+    ar: 'AR ಸಂಗ್ರಹಾಲಯ', vr: 'VR ಗ್ಯಾಲರಿ', settings: 'ಸೆಟ್ಟಿಂಗ್ಸ್', guide: 'ಗೈಡ್', language: 'ಭಾಷೆ', demo: 'ಡೆಮೊ ಮೋಡ್',
+  },
+};
+export default function App() {
+  const [screen, setScreen] = useState<AppScreen>('home');
+  const [progress, setProgress] = useState<GameProgress>(() => loadProgress());
+  const [nearChariot, setNearChariot] = useState(false);
+  const [inspectChariot, setInspectChariot] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
+  const [showPuzzle, setShowPuzzle] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showARPanel, setShowARPanel] = useState(false);
+  const [showVRPanel, setShowVRPanel] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [selectedMuseumArtifact, setSelectedMuseumArtifact] = useState(artifacts[0]);
+  const [puzzleSequence, setPuzzleSequence] = useState<string[]>([]);
+  const [puzzleResult, setPuzzleResult] = useState<'idle' | 'correct' | 'wrong'>('idle');
+  const [konarkAngle, setKonarkAngle] = useState(0);
+  const [weavePattern, setWeavePattern] = useState<number[]>([]);
+  const nearChariotRef = useRef(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; name: string; xp: number; artifacts: number }>>([]);
+  const [narrating, setNarrating] = useState(false);
+  const [photoMode, setPhotoMode] = useState(false);
+  const gameRef = useRef<{
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    renderer: THREE.WebGLRenderer;
+    xr: XRExperience;
+    player: THREE.Group;
+    playerParts: ReturnType<typeof createPlayer>;
+    colliders: THREE.Box3[];
+    cleanupWorld: () => void;
+    chariot?: THREE.Object3D;
+    animationId?: number;
+    controls: { keys: Record<string, boolean>; yaw: number; pitch: number; distance: number; dragging: boolean; lastX: number; lastY: number };
+  } | null>(null);
+  const gameMountRef = useRef<HTMLDivElement | null>(null);
+  const t = translations[progress.language];
+  const rankText = progress.rank;
+  const collectedCount = progress.discoveredArtifacts.length;
+  const mission = missions[0];
+  const unlockArtifact = (artifactId: string, xp = 100) => {
+    setProgress((prev) => {
+      const already = prev.discoveredArtifacts.includes(artifactId);
+      const nextXp = already ? prev.xp : prev.xp + xp;
+      const next = {
+        ...prev,
+        xp: nextXp,
+        discoveredArtifacts: already ? prev.discoveredArtifacts : [...prev.discoveredArtifacts, artifactId],
+      };
+      saveProgress(next);
+      return next;
+    });
+    if (!progress.discoveredArtifacts.includes(artifactId)) {
+      setToast({ title: 'DISCOVERY FOUND', body: artifacts.find((a) => a.id === artifactId)?.name, xp });
+    }
+  };
+  const completeObjective = (id: string) => {
+    setProgress((prev) => {
+      if (prev.completedObjectives.includes(id)) return prev;
+      const next = { ...prev, completedObjectives: [...prev.completedObjectives, id] };
+      saveProgress(next);
+      return next;
+    });
+  };
+  const completeMissionIfReady = () => {
+    const all = mission.objectives.every((o) => progress.completedObjectives.includes(o.id));
+    if (!all) return;
+    setProgress((prev) => {
+      if (prev.completedMissions.includes(mission.id)) return prev;
+      const next = {
+        ...prev,
+        completedMissions: [...prev.completedMissions, mission.id],
+        xp: prev.xp + mission.xp,
+      };
+      saveProgress(next);
+      return next;
+    });
+    setToast({ title: 'MISSION COMPLETE', body: mission.title, xp: mission.xp });
+  };
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+  useEffect(() => {
+    if (screen !== 'game' || !gameMountRef.current) return;
+    const mount = gameMountRef.current;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 420);
+    camera.position.set(0, 5, 14);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, progress.graphics === 'high' ? 1.5 : 1.15));
+    renderer.shadowMap.enabled = progress.graphics !== 'low';
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.xr.enabled = true;
+    renderer.xr.setReferenceSpaceType('local-floor');
+    renderer.domElement.className = 'game-canvas';
+    renderer.domElement.style.touchAction = 'none';
+    mount.appendChild(renderer.domElement);
+    const world = buildHampiWorld(scene, progress.graphics);
+    const playerParts = createPlayer();
+    scene.add(playerParts.player);
+    let chariot: THREE.Object3D | undefined;
+    let cancelled = false;
+    void loadArtifactModel(artifacts[0]).then((model) => {
+      if (cancelled) {
+        disposeObject(model);
+        return;
+      }
+      model.scale.multiplyScalar(0.95);
+      model.position.set(0, 1.02, -76);
+      model.rotation.y = Math.PI;
+      model.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.castShadow = progress.graphics !== 'low';
+          obj.receiveShadow = progress.graphics !== 'low';
+        }
+      });
+      chariot = model;
+      scene.add(model);
+      if (gameRef.current) gameRef.current.chariot = model;
+    }).catch((error) => console.error(error));
+    const xr = new XRExperience(renderer, scene, camera);
+    const nativeButtonsContainer = document.createElement('div');
+    nativeButtonsContainer.style.position = 'absolute';
+    nativeButtonsContainer.style.left = '-10000px';
+    nativeButtonsContainer.style.top = '0';
+    document.body.appendChild(nativeButtonsContainer);
+    xr.mountButtons(nativeButtonsContainer);
+    const controls = {
+      keys: {} as Record<string, boolean>,
+      yaw: 0,
+      pitch: 0.28,
+      distance: 10,
+      dragging: false,
+      lastX: 0,
+      lastY: 0,
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      controls.keys[event.code] = true;
+      if (event.code === 'Space') event.preventDefault();
+      if (event.code === 'KeyE' && nearChariotRef.current && chariot) {
+        setInspectChariot(true);
+        completeObjective('visit-courtyard');
+        unlockArtifact('stone-chariot');
+      }
+      if (event.code === 'Escape') {
+        setInspectChariot(false);
+        setShowPuzzle(false);
+      }
+      if (event.code === 'KeyM') setScreen('map');
+      if (event.code === 'KeyP') setScreen('passport');
+    };
+    const onKeyUp = (event: KeyboardEvent) => { controls.keys[event.code] = false; };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      controls.dragging = true;
+      controls.lastX = event.clientX;
+      controls.lastY = event.clientY;
+      renderer.domElement.setPointerCapture(event.pointerId);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!controls.dragging) return;
+      const dx = event.clientX - controls.lastX;
+      const dy = event.clientY - controls.lastY;
+      controls.lastX = event.clientX;
+      controls.lastY = event.clientY;
+      controls.yaw -= dx * 0.005;
+      controls.pitch -= dy * 0.004;
+      controls.pitch = THREE.MathUtils.clamp(controls.pitch, -0.08, 0.86);
+    };
+    const onPointerUp = () => { controls.dragging = false; };
+    const onWheel = (event: WheelEvent) => {
+      controls.distance = THREE.MathUtils.clamp(controls.distance + event.deltaY * 0.01, 5, 17);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('pointercancel', onPointerUp);
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: true });
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const cameraTarget = new THREE.Vector3();
+    const desiredCamera = new THREE.Vector3();
+    let verticalVelocity = 0;
+    let grounded = true;
+    const gravity = -22;
+    const jumpForce = 8.4;
+    const acceleration = 18;
+    const braking = 25;
+    let previous = performance.now();
+    renderer.setAnimationLoop((now, frame) => {
+      const delta = Math.min((now - previous) / 1000, 0.05);
+      previous = now;
+      direction.set(0, 0, 0);
+      if (controls.keys.KeyW) direction.z -= 1;
+      if (controls.keys.KeyS) direction.z += 1;
+      if (controls.keys.KeyA) direction.x -= 1;
+      if (controls.keys.KeyD) direction.x += 1;
+      const wantsMove = direction.lengthSq() > 0;
+      let targetX = 0;
+      let targetZ = 0;
+      if (wantsMove) {
+        direction.normalize();
+        direction.applyAxisAngle(up, controls.yaw);
+        const run = controls.keys.ShiftLeft || controls.keys.ShiftRight;
+        const maxSpeed = run ? 7.0 : 3.8;
+        targetX = direction.x * maxSpeed;
+        targetZ = direction.z * maxSpeed;
+      }
+      const damping = wantsMove ? acceleration : braking;
+      velocity.x = THREE.MathUtils.damp(velocity.x, targetX, damping, delta);
+      velocity.z = THREE.MathUtils.damp(velocity.z, targetZ, damping, delta);
+      const proposed = playerParts.player.position.clone();
+      proposed.x += velocity.x * delta;
+      proposed.z += velocity.z * delta;
+      proposed.y = playerParts.player.position.y;
+      const playerBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(proposed.x, 1.0, proposed.z),
+        new THREE.Vector3(0.9, 2.0, 0.9),
+      );
+      const blocked = world.colliders.some((box) => box.intersectsBox(playerBox));
+      if (!blocked) {
+        playerParts.player.position.x = proposed.x;
+        playerParts.player.position.z = proposed.z;
+      } else {
+        velocity.x *= 0.18;
+        velocity.z *= 0.18;
+      }
+      if (controls.keys.Space && grounded) {
+        verticalVelocity = jumpForce;
+        grounded = false;
+      }
+      verticalVelocity += gravity * delta;
+      playerParts.player.position.y += verticalVelocity * delta;
+      if (playerParts.player.position.y <= 0) {
+        playerParts.player.position.y = 0;
+        verticalVelocity = 0;
+        grounded = true;
+      }
+      playerParts.player.position.x = THREE.MathUtils.clamp(playerParts.player.position.x, -24, 24);
+      playerParts.player.position.z = THREE.MathUtils.clamp(playerParts.player.position.z, -100, 12);
+      const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+      if (horizontalSpeed > 0.05) {
+        const targetRotation = Math.atan2(velocity.x, velocity.z);
+        let diff = targetRotation - playerParts.player.rotation.y;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        playerParts.player.rotation.y += diff * Math.min(delta * 12, 1);
+        playerParts.body.position.y = 1.05 + Math.sin(now * 0.014) * 0.035;
+        playerParts.cloth.rotation.z = Math.sin(now * 0.014) * 0.02;
+      } else {
+        playerParts.body.position.y = 1.05;
+        playerParts.cloth.rotation.z = 0;
+      }
+      if (chariot) {
+        const d = playerParts.player.position.distanceTo(chariot.position);
+        const near = d < 8.5;
+        if (near !== nearChariotRef.current) {
+          nearChariotRef.current = near;
+          setNearChariot(near);
+        }
+        if (near) completeObjective('discover-pillar');
+      }
+      for (let i = 0; i < world.trees.length; i++) {
+        world.trees[i].rotation.z = Math.sin(now * 0.0007 + i) * 0.005;
+      }
+      cameraTarget.set(playerParts.player.position.x, playerParts.player.position.y + 1.45, playerParts.player.position.z);
+      const horizontal = controls.distance * Math.cos(controls.pitch);
+      desiredCamera.set(
+        playerParts.player.position.x + Math.sin(controls.yaw) * horizontal,
+        playerParts.player.position.y + 1.4 + controls.distance * Math.sin(controls.pitch),
+        playerParts.player.position.z + Math.cos(controls.yaw) * horizontal,
+      );
+      camera.position.lerp(desiredCamera, 0.1);
+      camera.lookAt(cameraTarget);
+      xr.update(frame ?? null);
+      renderer.render(scene, camera);
+    });
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, progress.graphics === 'high' ? 1.5 : 1.15));
+    };
+    window.addEventListener('resize', onResize);
+    gameRef.current = { scene, camera, renderer, xr, player: playerParts.player, playerParts, colliders: world.colliders, cleanupWorld: world.cleanup, chariot, controls };
+    return () => {
+      cancelled = true;
+      renderer.setAnimationLoop(null);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
+      renderer.domElement.removeEventListener('wheel', onWheel);
+      xr.dispose();
+      nativeButtonsContainer.remove();
+      world.cleanup();
+      renderer.dispose();
+      disposeObject(playerParts.player);
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+      gameRef.current = null;
+    };
+  }, [screen, progress.graphics]);
+  useEffect(() => {
+    if (screen !== 'game') return;
+    const timer = window.setInterval(() => {
+      const current = loadProgress();
+      void syncProgress(current).catch(() => undefined);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [screen]);
+  const setLanguage = (language: Language) => {
+    setProgress((prev) => {
+      const next = { ...prev, language };
+      saveProgress(next);
+      return next;
+    });
+  };
+  const openGame = () => {
+    setScreen('game');
+    setShowGuide(true);
+  };
+  const openLocation = (locationId: string) => {
+  switch (locationId) {
+    case 'hampi':
+      setScreen('game');
+      setShowGuide(true);
+      break;
+    case 'konark':
+      setSelectedMuseumArtifact(
+        artifacts.find(
+          (a) => a.id === 'sun-wheel'
+        ) ?? artifacts[0]
+      );
+      setScreen('game');
+      setShowGuide(false);
+      break;
+    case 'rajasthan':
+      setSelectedMuseumArtifact(
+        artifacts.find(
+          (a) => a.id === 'weave-pattern'
+        ) ?? artifacts[0]
+      );
+      setScreen('game');
+      setShowGuide(false);
+      break;
+    case 'ellora':
+      setSelectedMuseumArtifact(
+        artifacts.find(
+          (a) => a.id === 'ellora-caves'
+        ) ?? artifacts[0]
+      );
+      setScreen('museum');
+      break;
+    case 'ayodhya':
+      setSelectedMuseumArtifact(
+        artifacts.find(
+          (a) => a.id === 'ram-temple'
+        ) ?? artifacts[0]
+      );
+      setScreen('museum');
+      break;
+    default:
+      setScreen('map');
+      break;
+  }
+};
+  const resetProgress = () => {
+    const next = { ...defaultProgress(), guestId: progress.guestId, language: progress.language, graphics: progress.graphics, soundEnabled: progress.soundEnabled };
+    saveProgress(next);
+    setProgress(next);
+    setToast({ title: 'EXPEDITION RESET' });
+  };
+  const startAR = async () => {
+    setShowARPanel(true);
+    setScreen('game');
+    window.setTimeout(() => {
+      const xr = gameRef.current?.xr;
+      const target = artifacts.find((a) => a.id === selectedMuseumArtifact.id) ?? artifacts[0];
+      void xr?.setArtifact(target);
+      const btn = document.querySelector('.xr-native-button') as HTMLButtonElement | null;
+      btn?.click();
+    }, 250);
+  };
+  const startVR = async () => {
+    setShowVRPanel(true);
+    setScreen('game');
+    window.setTimeout(() => {
+      const xr = gameRef.current?.xr;
+      const target = artifacts.find((a) => a.id === selectedMuseumArtifact.id) ?? artifacts[0];
+      void xr?.setArtifact(target);
+      const buttons = Array.from(document.querySelectorAll('.xr-native-button')) as HTMLButtonElement[];
+      buttons.find((b) => (b.textContent || '').includes('ENTER VR'))?.click();
+    }, 250);
+  };
+  const puzzlePieces = [
+    { id: 'foundation', label: 'FOUNDATION' },
+    { id: 'columns', label: 'COLUMNS' },
+    { id: 'beam', label: 'BEAM' },
+    { id: 'upper', label: 'UPPER LAYER' },
+  ];
+  const solvePuzzle = () => {
+    const correct = ['foundation', 'columns', 'beam', 'upper'];
+    const ok = puzzleSequence.length === correct.length && puzzleSequence.every((x, i) => x === correct[i]);
+    setPuzzleResult(ok ? 'correct' : 'wrong');
+    if (ok) {
+      completeObjective('solve-reconstruction');
+      completeObjective('restore-blueprint');
+      unlockArtifact('temple-pillar', 100);
+      completeMissionIfReady();
+    }
+  };
+  const toggleWeave = (index: number) => {
+    setWeavePattern((prev) => prev.includes(index) ? prev.filter((x) => x !== index) : [...prev, index]);
+  };
+  const loadLeaderboard = async () => {
+    try {
+      const module = await import('./services/api');
+      const data = await module.getLeaderboard();
+      setLeaderboard(data);
+      setLeaderboardOpen(true);
+    } catch {
+      setToast({ title: 'LEADERBOARD OFFLINE', body: 'Run the backend to enable live leaderboard data.' });
+    }
+  };
+  const speakArtifact = (artifact = selectedMuseumArtifact) => {
+    if (!('speechSynthesis' in window)) {
+      setToast({ title: 'VOICE UNAVAILABLE', body: 'This browser does not expose Speech Synthesis.' });
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(`${artifact.name}. ${artifact.description}`);
+    utterance.lang = progress.language === 'hi' ? 'hi-IN' : progress.language === 'kn' ? 'kn-IN' : 'en-IN';
+    utterance.rate = 0.92;
+    utterance.onstart = () => setNarrating(true);
+    utterance.onend = () => setNarrating(false);
+    utterance.onerror = () => setNarrating(false);
+    window.speechSynthesis.speak(utterance);
+  };
+  const bodyCopy = useMemo(() => {
+    if (screen === 'game') return 'Explore Hampi, recover the blueprint and discover the Stone Chariot.';
+    if (screen === 'map') return 'Choose a cultural world. Playable locations are connected by one expandable game architecture.';
+    return 'A digital playground for Indian civilization, history and living culture.';
+  }, [screen]);
+  return (
+    <main className="app">
+      {screen === 'home' && (
+        <section className="hero-screen">
+          <div className="hero-glow" />
+          <div className="hero-copy">
+            <div className="eyebrow">SMART INDIA HACKATHON · 26208 · TOYS & GAMES</div>
+            <div className="hero-title">VIRASAT</div>
+            <div className="hero-subtitle">The India Civilization Quest — a playable 3D cultural world where history becomes exploration, puzzles and discovery.</div>
+            <div className="hero-meta">
+              <span className="meta-chip">3D Worlds</span><span className="meta-chip">Real 3D Assets</span><span className="meta-chip">AR</span><span className="meta-chip">VR</span><span className="meta-chip">Multilingual</span><span className="meta-chip">Offline-ready</span>
+            </div>
+            <div className="hero-actions">
+              <button className="primary-btn" onClick={openGame}>{t.start}</button>
+              <button className="secondary-btn" onClick={() => setScreen('map')}>{t.map}</button>
+              <button className="ghost-btn" onClick={() => setScreen('museum')}>{t.museum}</button>
+            </div>
+            <div className="hero-actions">
+              <button className="ghost-btn" onClick={startAR}>{t.ar}</button>
+              <button className="ghost-btn" onClick={startVR}>{t.vr}</button>
+              <button className="ghost-btn" onClick={() => setScreen('passport')}>{t.passport}</button>
+            </div>
+          </div>
+          <div className="hero-orbit">
+            <div className="hero-mark">PLAY THE PAST</div>
+            <div className="hero-sun" />
+          </div>
+        </section>
+      )}
+      {screen !== 'home' && screen !== 'game' && (
+        <div className="topbar pointer">
+          <div className="brand">VIRASAT</div>
+          <div className="top-actions">
+            <button className="small-btn" onClick={() => setScreen('home')}>HOME</button>
+            <button className="small-btn" onClick={() => setScreen('game')}>JOURNEY</button>
+            <button className="small-btn" onClick={() => setScreen('map')}>{t.map}</button>
+            <button className="small-btn" onClick={() => setScreen('museum')}>{t.museum}</button>
+            <button className="small-btn" onClick={() => setScreen('passport')}>{t.passport}</button>
+          </div>
+        </div>
+      )}
+      {screen === 'map' && (
+        <section className="map-screen">
+          <div className="section-title"><div className="eyebrow">WORLD SELECT</div><h2>Journey across India</h2><p>{bodyCopy}</p></div>
+          <div className="map-layout">
+            <div className="map-card">
+              <div className="india-shape" />
+              {locations.map((location) => {
+                const pos: Record<string, { left: string; top: string }> = {
+                  hampi: { left: '45%', top: '69%' }, konark: { left: '68%', top: '43%' }, rajasthan: { left: '31%', top: '28%' }, ellora: { left: '39%', top: '44%' }, ayodhya: { left: '54%', top: '24%' },
+                };
+                const p = pos[location.id];
+return <button key={location.id} className="map-marker" style={{ left: p.left, top: p.top }} onClick={() => openLocation(location.id)}>              &#x20;
+   <div className="marker-dot" />
+                  <div className="marker-label">{location.name}</div>
+                </button>;
+              })}
+            </div>
+            <div className="glass-panel location-card">
+              <span className="status">Playable now</span>
+              <h3>Hampi</h3>
+              <p>First vertical slice: third-person exploration, the Stone Chariot landmark, clues, reconstruction puzzle, artifact collection and a heritage passport.</p>
+              <div className="modal-actions">
+                <button className="primary-btn" onClick={openGame}>ENTER HAMPI</button>
+                <button className="secondary-btn" onClick={() => setScreen('museum')}>VIEW ASSETS</button>
+              </div>
+              <div style={{ marginTop: 26 }}>
+                <div className="eyebrow">EXPANSION WORLDS</div>
+                <p>Konark — wheel geometry challenge · Rajasthan — pattern-weaving game · Ellora — supplied cave model · Ram Temple — supplied architectural model.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+      {screen === 'museum' && (
+        <section className="museum-screen">
+          <div className="section-title">
+            <div className="eyebrow">REAL 3D ASSETS · INSPECTION · XR</div>
+            <h2>Virasat Heritage Museum</h2>
+            <p>
+              Select one of the supplied heritage models. Inspect it in 3D,
+              listen to a short narration, or send the same asset into AR and VR.
+            </p>
+          </div>
+
+          <div className="museum-grid">
+            {artifacts
+              .filter((a) => a.model)
+              .map((artifact) => (
+                <button
+                  key={artifact.id}
+                  className="glass-panel artifact-card"
+                  onClick={() => setSelectedMuseumArtifact(artifact)}
+                  style={{
+                    border:
+                      selectedMuseumArtifact.id === artifact.id
+                        ? '1px solid rgba(220,184,116,.7)'
+                        : undefined,
+                    boxShadow:
+                      selectedMuseumArtifact.id === artifact.id
+                        ? '0 0 30px rgba(220,184,116,.08)'
+                        : undefined,
+                    textAlign: 'left',
+                  }}
+                >
+                  <div className="artifact-visual">
+                    <div className="artifact-symbol" />
+                  </div>
+
+                  <h3>{artifact.name}</h3>
+
+                  <p>
+                    {artifact.region} · {artifact.category}
+                  </p>
+
+                  <p>{artifact.description}</p>
+
+                  <div
+                    className="kicker"
+                    style={{ marginTop: 12 }}
+                  >
+                    {selectedMuseumArtifact.id === artifact.id
+                      ? 'SELECTED'
+                      : 'SELECT MODEL'}
+                  </div>
+                </button>
+              ))}
+          </div>
+
+          <div
+            className="glass-panel"
+            style={{
+              marginTop: 24,
+              padding: 18,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 20,
+                flexWrap: 'wrap',
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <div className="eyebrow">SELECTED ASSET</div>
+                <h3
+                  style={{
+                    margin: '7px 0 4px',
+                    fontSize: 30,
+                  }}
+                >
+                  {selectedMuseumArtifact.name}
+                </h3>
+                <div className="kicker">
+                  {selectedMuseumArtifact.region}
+                  {' · '}
+                  {selectedMuseumArtifact.category}
+                  {' · '}
+                  {(selectedMuseumArtifact.format || '3d').toUpperCase()}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: 11,
+                  opacity: 0.55,
+                  lineHeight: 1.6,
+                }}
+              >
+                Drag · Rotate
+                <br />
+                Scroll · Zoom
+              </div>
+            </div>
+
+            <div
+              style={{
+                width: '100%',
+                height: 'min(68vh, 650px)',
+                minHeight: 430,
+                overflow: 'hidden',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,.08)',
+                background:
+                  'radial-gradient(circle at center, rgba(202,159,84,.12), rgba(10,8,6,.96))',
+              }}
+            >
+              {selectedMuseumArtifact.model ? (
+                <ArtifactViewer artifact={selectedMuseumArtifact} />
+              ) : (
+                <div
+                  style={{
+                    height: '100%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: 'rgba(244,234,215,.55)',
+                    fontSize: 13,
+                  }}
+                >
+                  This collectible does not have a 3D model yet.
+                </div>
+              )}
+            </div>
+
+            <div
+              className="modal-actions"
+              style={{ marginTop: 18 }}
+            >
+              <button className="primary-btn" onClick={startAR}>
+                {t.ar}
+              </button>
+
+              <button className="secondary-btn" onClick={startVR}>
+                {t.vr}
+              </button>
+
+              <button
+                className="secondary-btn"
+                onClick={() => speakArtifact(selectedMuseumArtifact)}
+              >
+                {narrating ? 'STOP NARRATION' : 'NARRATE'}
+              </button>
+
+              <button
+                className="ghost-btn"
+                onClick={() => setScreen('map')}
+              >
+                WORLD MAP
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="map-layout"
+            style={{ marginTop: 20 }}
+          >
+            <div className="glass-panel" style={{ padding: 22 }}>
+              <div className="eyebrow">HERITAGE RECORD</div>
+
+              <h3
+                style={{
+                  marginTop: 8,
+                  fontSize: 24,
+                }}
+              >
+                {selectedMuseumArtifact.name}
+              </h3>
+
+              <p
+                style={{
+                  lineHeight: 1.75,
+                  color: 'rgba(244,234,215,.62)',
+                }}
+              >
+                {selectedMuseumArtifact.description}
+              </p>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                  gap: 10,
+                  marginTop: 18,
+                }}
+              >
+                <div className="glass-panel" style={{ padding: 14 }}>
+                  <div className="eyebrow">REGION</div>
+                  <div style={{ marginTop: 5 }}>
+                    {selectedMuseumArtifact.region}
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: 14 }}>
+                  <div className="eyebrow">PERIOD</div>
+                  <div style={{ marginTop: 5 }}>
+                    {selectedMuseumArtifact.period}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: 22 }}>
+              <div className="eyebrow">EXPERIENCE PIPELINE</div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gap: 11,
+                  marginTop: 14,
+                  color: 'rgba(244,234,215,.72)',
+                }}
+              >
+                <div>01 · Desktop 3D inspection</div>
+                <div>02 · Heritage narration</div>
+                <div>03 · AR artifact placement</div>
+                <div>04 · VR gallery experience</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+      {screen === 'passport' && (
+        <section className="passport-screen">
+          <div className="passport-book">
+            <div className="passport-head">
+              <div><div className="eyebrow">DIGITAL CULTURAL EXPEDITION</div><div className="passport-title">HERITAGE<br />PASSPORT</div></div>
+              <div style={{ textAlign: 'right' }}><div className="kicker">{rankText}</div><div style={{ fontSize: 34, fontWeight: 700 }}>{progress.xp}<span style={{ fontSize: 12, opacity: .5 }}> XP</span></div></div>
+            </div>
+            <div className="passport-grid">
+              <div className="glass-panel" style={{ padding: 20 }}><div className="eyebrow">EXPEDITION STAMPS</div><div className="stamp-grid" style={{ marginTop: 14 }}>{locations.map((l) => <div key={l.id} className={`stamp ${progress.unlockedLocations.includes(l.id) ? 'unlocked' : ''}`}>{l.name}</div>)}</div></div>
+              <div className="glass-panel" style={{ padding: 20 }}><div className="eyebrow">COLLECTION</div><h3 style={{ fontSize: 30 }}>{collectedCount} / {artifacts.length}</h3><p style={{ color: 'rgba(244,234,215,.58)' }}>Artifacts and discoveries become persistent collectibles. Refreshing the browser preserves demo progress.</p></div>
+            </div>
+            <div className="glass-panel" style={{ padding: 20, marginTop: 20 }}><div className="eyebrow">ACHIEVEMENTS</div><div className="stamp-grid" style={{ marginTop: 14 }}><div className={`stamp ${progress.completedObjectives.includes('solve-reconstruction') ? 'unlocked' : ''}`}>ARCHITECT'S EYE</div><div className={`stamp ${collectedCount >= 5 ? 'unlocked' : ''}`}>ARTIFACT HUNTER</div><div className={`stamp ${progress.completedMissions.includes(mission.id) ? 'unlocked' : ''}`}>MASTER OF VIRASAT</div></div></div>
+            <div className="modal-actions"><button className="primary-btn" onClick={openGame}>CONTINUE JOURNEY</button><button className="secondary-btn" onClick={loadLeaderboard}>LEADERBOARD</button><button className="ghost-btn" onClick={resetProgress}>RESET DEMO</button></div>
+          </div>
+        </section>
+      )}
+      {leaderboardOpen && <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">EXPEDITION RANKINGS</div><h2>Leaderboard</h2><p>Backend-backed when the local server is running; seeded demo data is used as the offline fallback.</p><div style={{display:'grid', gap:8}}>{leaderboard.slice(0,10).map((row) => <div key={`${row.rank}-${row.name}`} className="glass-panel" style={{padding:'12px 14px',display:'grid',gridTemplateColumns:'44px 1fr 90px 80px',gap:10,alignItems:'center'}}><strong>#{row.rank}</strong><span>{row.name}</span><span>{row.xp} XP</span><span>{row.artifacts} ART.</span></div>)}</div><div className="modal-actions"><button className="ghost-btn" onClick={() => setLeaderboardOpen(false)}>CLOSE</button></div></div></div>}
+      {screen === 'about' && (
+        <section className="about-screen">
+          <div className="section-title"><div className="eyebrow">SIH 26208</div><h2>From information to play</h2><p>Virasat turns Indian civilization and culture into interactive 3D exploration, puzzles, collectible artifacts and immersive XR experiences.</p></div>
+          <div className="map-layout"><div className="glass-panel" style={{ padding: 24 }}><div className="eyebrow">CORE LOOP</div><h3>Explore → Interact → Solve → Learn → Collect</h3><p>{bodyCopy}</p></div><div className="glass-panel" style={{ padding: 24 }}><div className="eyebrow">TECHNICAL STACK</div><p>React · Vite · TypeScript · Three.js · WebXR · Node.js · Express · Supabase-compatible persistence</p><div className="eyebrow" style={{ marginTop: 20 }}>FUTURE</div><p>More regional worlds, museum mode, classroom mode, multiplayer cultural challenges, AR treasure hunts and teacher analytics.</p></div></div>
+        </section>
+      )}
+      {screen === 'game' && (
+        <section className="game-shell">
+          <div ref={gameMountRef} className="canvas-host" />
+          <div className="game-hud" style={{ opacity: photoMode ? 0 : 1, transition: 'opacity .2s ease' }}>
+            <div className="glass-panel hud-panel">
+              <div className="eyebrow">VIRASAT · HAMPI</div>
+              <strong style={{ display: 'block', marginTop: 5, fontFamily: 'Space Grotesk', fontSize: 20 }}>THE LOST BLUEPRINT</strong>
+              <div style={{ marginTop: 8, color: 'rgba(244,234,215,.55)', fontSize: 11 }}>XP {progress.xp} · {rankText}</div>
+            </div>
+            <div className="hud-right pointer"><button className="small-btn" onClick={() => setScreen('map')}>{t.map}</button><button className="small-btn" onClick={() => setScreen('museum')}>{t.museum}</button><button className="small-btn" onClick={() => setScreen('passport')}>PASSPORT</button><button className="small-btn" onClick={startAR}>AR</button><button className="small-btn" onClick={startVR}>VR</button><button className="small-btn" onClick={() => setPhotoMode((v) => !v)}>{photoMode ? 'HUD' : 'PHOTO'}</button><button className="small-btn" onClick={() => setShowSettings(true)}>SETTINGS</button></div>
+            <div className="hud-bottom">
+              <div className="glass-panel objective-panel">
+                <div className="eyebrow">{t.mission}</div>
+                <h4>{mission.title}</h4>
+                {mission.objectives.map((o) => <div className={`objective ${progress.completedObjectives.includes(o.id) ? 'done' : ''}`} key={o.id}><span>{progress.completedObjectives.includes(o.id) ? '✓' : '○'}</span><span>{o.text}</span></div>)}
+              </div>
+              {nearChariot && !inspectChariot && <div className="glass-panel interact"><span className="keycap">E</span>{t.inspect}</div>}
+              <div className="glass-panel" style={{ padding: '11px 14px', fontSize: 11, color: 'rgba(244,234,215,.6)' }}><strong>WASD</strong> Move · <strong>SHIFT</strong> Run · <strong>SPACE</strong> Jump · <strong>DRAG</strong> Camera</div>
+            </div>
+          </div>
+          {inspectChariot && <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">DISCOVERED</div><h2>Stone Chariot</h2><div className="kicker">HAMPI · KARNATAKA · ARCHITECTURE</div><p>The Stone Chariot is a landmark within the historic Hampi landscape. In Virasat, the monument becomes an interactive discovery point that connects exploration with architectural learning.</p><div className="modal-actions"><button className="primary-btn" onClick={() => setShowPuzzle(true)}>RECONSTRUCT BLUEPRINT</button><button className="secondary-btn" onClick={() => speakArtifact(artifacts[0])}>{narrating ? 'STOP NARRATION' : 'NARRATE'}</button><button className="secondary-btn" onClick={() => { setInspectChariot(false); setScreen('museum'); setSelectedMuseumArtifact(artifacts[0]); }}>OPEN 3D MUSEUM</button><button className="ghost-btn" onClick={() => setInspectChariot(false)}>CLOSE · ESC</button></div></div></div>}
+          {showPuzzle && <div className="modal-backdrop"><div className="glass-panel puzzle"><div className="eyebrow">ARCHITECTURE GAME</div><h2>The Reconstruction</h2><p>Select the pieces in the structural sequence suggested by the game. The fictional puzzle is an educational game mechanic, not a claim that this exact reconstruction process historically occurred.</p><div className="sequence">{puzzleSequence.map((p) => <span key={p}>{p.toUpperCase()}</span>)}</div><div className="puzzle-grid">{puzzlePieces.map((piece) => <button key={piece.id} className={`puzzle-piece ${puzzleSequence.includes(piece.id) ? 'selected' : ''}`} onClick={() => setPuzzleSequence((prev) => prev.includes(piece.id) ? prev : [...prev, piece.id])}>{piece.label}</button>)}</div>{puzzleResult === 'correct' && <div className="glass-panel" style={{ padding: 14, marginTop: 18 }}>ARCHITECTURAL MEMORY RESTORED · +100 XP</div>}{puzzleResult === 'wrong' && <div className="glass-panel" style={{ padding: 14, marginTop: 18 }}>Sequence needs another attempt.</div>}<div className="modal-actions"><button className="primary-btn" onClick={solvePuzzle}>CHECK SEQUENCE</button><button className="ghost-btn" onClick={() => { setPuzzleSequence([]); setPuzzleResult('idle'); }}>RESET</button><button className="ghost-btn" onClick={() => setShowPuzzle(false)}>CLOSE</button></div></div></div>}
+          {showGuide && <div className="modal-backdrop" style={{ alignItems: 'flex-end', justifyContent: 'flex-start', background: 'transparent', pointerEvents: 'none' }}><div className="glass-panel" style={{ maxWidth: 360, padding: 18, pointerEvents: 'auto', margin: '0 0 90px 20px' }}><div className="eyebrow">ANVESHAK · CULTURAL GUIDE</div><p style={{ margin: '8px 0' }}>{guideLines.welcome}</p><button className="ghost-btn" onClick={() => setShowGuide(false)}>DISMISS</button></div></div>}
+          {showSettings && <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">SETTINGS</div><h2>Expedition Controls</h2><div style={{ display:'grid', gap: 14 }}><label>Language<select value={progress.language} onChange={(e) => setLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">Hindi</option><option value="kn">Kannada</option></select></label><label>Graphics<select value={progress.graphics} onChange={(e) => setProgress((prev) => ({ ...prev, graphics: e.target.value as GameProgress['graphics'] }))}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label><input type="checkbox" checked={progress.soundEnabled} onChange={() => setProgress((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))} /> Sound</label></div><div className="modal-actions"><button className="primary-btn" onClick={() => { saveProgress(progress); setShowSettings(false); }}>SAVE</button></div></div></div>}
+          {showARPanel && <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">IMMERSIVE AR</div><h2>Artifact Placement</h2><p>On a compatible mobile browser and secure HTTPS page, the AR button starts a real WebXR immersive-ar session with hit-testing. The selected artifact can be placed on a detected surface.</p><div className="modal-actions"><button className="primary-btn" onClick={() => { setShowARPanel(false); startAR(); }}>RETRY AR</button><button className="ghost-btn" onClick={() => setShowARPanel(false)}>CLOSE</button></div></div></div>}
+          {showVRPanel && <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">IMMERSIVE VR</div><h2>Virtual Heritage Gallery</h2><p>The VR mode uses the same artifact assets and scene through WebXR immersive-vr. A compatible headset/browser is required; otherwise the desktop 3D mode remains available.</p><div className="modal-actions"><button className="primary-btn" onClick={() => { setShowVRPanel(false); startVR(); }}>RETRY VR</button><button className="ghost-btn" onClick={() => setShowVRPanel(false)}>CLOSE</button></div></div></div>}
+          {toast && <div className="xp-toast"><strong>{toast.title}</strong>{toast.body && <div style={{ marginTop: 3, opacity: .65 }}>{toast.body}</div>}{toast.xp && <div style={{ marginTop: 4 }}>+{toast.xp} XP</div>}</div>}
+        </section>
+      )}
+      {screen === 'game' && <div style={{ position: 'fixed', left: -10000, top: -10000 }} />}
+      {/* Lightweight expansion panels accessible without leaving the product. */}
+      {screen === 'map' && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 20, display:'flex', gap:8 }}>
+          <button className="small-btn" onClick={() => { setScreen('game'); setSelectedMuseumArtifact(artifacts.find(a => a.id === 'sun-wheel') ?? artifacts[0]); }}>PLAY KONARK PUZZLE</button>
+          <button className="small-btn" onClick={() => { setScreen('game'); setSelectedMuseumArtifact(artifacts.find(a => a.id === 'weave-pattern') ?? artifacts[0]); }}>PLAY RAJASTHAN</button>
+        </div>
+      )}
+      {/* Future-feature playground: one-click mini games can be enabled from the map. */}
+      {selectedMuseumArtifact.id === 'sun-wheel' && screen === 'game' && (
+        <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">KONARK · GEOMETRY MINI-GAME</div><h2>Align the Sun Wheel</h2><p>Rotate the stylized wheel until the marker reaches the target sector.</p><div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:120, height:120, border:'2px solid rgba(220,184,116,.4)', borderRadius:'50%', transform:`rotate(${konarkAngle}deg)`, position:'relative' }}><div style={{ position:'absolute', left:'50%', top:0, width:2, height:'50%', background:'#d9b878', transform:'translateX(-50%)' }} /></div></div><div className="modal-actions"><button className="primary-btn" onClick={() => { const a = konarkAngle % 360; if (Math.abs(a - 120) < 8 || Math.abs(a - 480) < 8) unlockArtifact('sun-wheel', 120); }}>CHECK</button><button className="secondary-btn" onClick={() => setKonarkAngle((v) => v + 15)}>ROTATE</button><button className="ghost-btn" onClick={() => setSelectedMuseumArtifact(artifacts[0])}>CLOSE</button></div></div></div>
+      )}
+      {selectedMuseumArtifact.id === 'weave-pattern' && screen === 'game' && (
+        <div className="modal-backdrop"><div className="glass-panel modal"><div className="eyebrow">RAJASTHAN · CRAFT MINI-GAME</div><h2>Pattern Weaver</h2><p>Complete a symmetric grid inspired by geometric textile design.</p><div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginTop:20 }}>{Array.from({length:16}, (_,i) => <button key={i} className={`puzzle-piece ${weavePattern.includes(i) ? 'selected' : ''}`} onClick={() => toggleWeave(i)} style={{ minHeight:50 }} />)}</div><div className="modal-actions"><button className="primary-btn" onClick={() => { const good = weavePattern.length === 8; if (good) unlockArtifact('weave-pattern', 120); else setToast({ title:'TRY AGAIN', body:'Build a balanced 8-cell pattern.' }); }}>SUBMIT PATTERN</button><button className="ghost-btn" onClick={() => setSelectedMuseumArtifact(artifacts[0])}>CLOSE</button></div></div></div>
+      )}
+    </main>
+  );
+}
+function disposeObject(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    obj.geometry.dispose();
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    materials.forEach((material) => material.dispose());
+  });
+}

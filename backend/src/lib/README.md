@@ -1,0 +1,1 @@
+Optional Supabase repository integration lives in repository.mjs. Set DATABASE_MODE=supabase, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to enable cloud progress persistence. Without those values the backend uses backend/data/demo-db.json, so the demo still works locally.
