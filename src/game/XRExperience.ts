@@ -59,6 +59,21 @@ export class XRExperience {
     this.xrGroup.name = 'XR-Gallery';
     scene.add(this.xrGroup);
 
+    const xrFill = new THREE.HemisphereLight(
+  0xffead6,
+  0x3b2416,
+  3.2,
+);
+
+const xrKey = new THREE.DirectionalLight(
+  0xffd3a3,
+  4.0,
+);
+
+xrKey.position.set(2, 5, 3);
+
+this.xrGroup.add(xrFill, xrKey);
+
     this.reticle = new THREE.Mesh(
       new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({
@@ -426,6 +441,13 @@ export class XRExperience {
         this.reticle.visible = false;
       }
     }
+if (
+  this.heritageVideoTexture &&
+  this.heritageVideo &&
+  this.heritageVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+) {
+  this.heritageVideoTexture.needsUpdate = true;
+}
 
     this.updateVideoFacing();
     this.ensureHeritageVideoPlaying();
