@@ -47,7 +47,9 @@ import { HeritageVideo } from './components/HeritageVideo';
 import { ImageTrail } from './components/ImageTrail';
 import { CrowdCanvas } from './components/CrowdCanvas';
 import { ProfileCard } from './components/ProfileCard';
+import MobileControls from './components/MobileControls';
 import HeritageLibrary from './components/HeritageLibrary';
+
 
 
 
@@ -727,7 +729,48 @@ export default function App() {
 
     };
 
+const mobileStick = {
+  x: 0,
+  y: 0,
+};
 
+const onMobileMove = (event: Event) => {
+  const detail = (
+    event as CustomEvent<{ x: number; y: number }>
+  ).detail;
+
+  mobileStick.x = detail.x;
+  mobileStick.y = detail.y;
+};
+
+const onMobileAction = (event: Event) => {
+  const detail = (
+    event as CustomEvent<{
+      action: 'jump' | 'interact';
+      pressed: boolean;
+    }>
+  ).detail;
+
+  if (detail.action === 'jump') {
+    controls.keys.Space = detail.pressed;
+  }
+
+  if (detail.action === 'interact') {
+    window.dispatchEvent(
+      new KeyboardEvent(
+        detail.pressed ? 'keydown' : 'keyup',
+        {
+          key: 'e',
+          code: 'KeyE',
+          bubbles: true,
+        },
+      ),
+    );
+  }
+};
+
+window.addEventListener('virasat-mobile-move', onMobileMove);
+window.addEventListener('virasat-mobile-action', onMobileAction);
 
     const onKeyDown = (event: KeyboardEvent) => {
 
@@ -965,23 +1008,16 @@ export default function App() {
 
 
 
-      direction.set(0, 0, 0);
+  direction.set(0, 0, 0);
 
+if (controls.keys.KeyW) direction.z -= 1;
+if (controls.keys.KeyS) direction.z += 1;
+if (controls.keys.KeyA) direction.x -= 1;
+if (controls.keys.KeyD) direction.x += 1;
 
-
-      if (controls.keys.KeyW) direction.z -= 1;
-
-
-
-      if (controls.keys.KeyS) direction.z += 1;
-
-
-
-      if (controls.keys.KeyA) direction.x -= 1;
-
-
-
-      if (controls.keys.KeyD) direction.x += 1;
+// Mobile joystick input
+direction.x += mobileStick.x;
+direction.z += mobileStick.y;
 
 
 
@@ -3676,6 +3712,7 @@ return <button key={location.id} className="map-marker" style={{ left: p.left, t
 
 
           <div ref={gameMountRef} className="canvas-host" />
+          <MobileControls />
 
 
 

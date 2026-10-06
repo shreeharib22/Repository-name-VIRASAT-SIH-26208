@@ -1958,3 +1958,132 @@ input:focus-visible {
     opacity: 0.32;
   }
 }
+
+/* =========================
+   MOBILE GAME CONTROLS
+   ========================= */
+
+.mobile-controls {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    pointer-events: none;
+    display: block;
+  }
+
+  .mobile-joystick {
+    position: absolute;
+    left: 22px;
+    bottom: 26px;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    pointer-events: auto;
+    touch-action: none;
+
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,.16), transparent 35%),
+      rgba(15, 15, 20, .72);
+
+    border: 2px solid rgba(255, 193, 77, .45);
+    box-shadow:
+      0 0 0 8px rgba(255, 193, 77, .06),
+      0 12px 35px rgba(0,0,0,.35),
+      inset 0 0 25px rgba(255,193,77,.08);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .mobile-joystick::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 76px;
+    height: 76px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+
+  .mobile-joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 58px;
+    height: 58px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,.28), transparent 30%),
+      linear-gradient(145deg, rgba(255,193,77,.95), rgba(210,130,30,.95));
+
+    border: 2px solid rgba(255,255,255,.3);
+    box-shadow:
+      0 7px 20px rgba(0,0,0,.35),
+      0 0 18px rgba(255,193,77,.24);
+
+    pointer-events: none;
+  }
+
+  .mobile-action-stack {
+    position: absolute;
+    right: 22px;
+    bottom: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .mobile-action-btn {
+    min-width: 112px;
+    min-height: 52px;
+    padding: 0 18px;
+    border-radius: 16px;
+
+    border: 1px solid rgba(255,193,77,.38);
+    background: rgba(15,15,20,.76);
+    color: #fff;
+
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .12em;
+
+    box-shadow:
+      0 10px 28px rgba(0,0,0,.3),
+      inset 0 0 20px rgba(255,193,77,.05);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .mobile-action-btn:active {
+    transform: scale(.94);
+    background: rgba(255,193,77,.18);
+  }
+
+  .mobile-action-btn-small {
+    min-width: 112px;
+    min-height: 46px;
+    font-size: 11px;
+  }
+
+  /* Give the game canvas room for touch gestures */
+  .canvas-host,
+  .canvas-host canvas {
+    touch-action: none;
+  }
+}
